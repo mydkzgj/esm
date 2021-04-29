@@ -106,6 +106,7 @@ def create_supervised_trainer(model, optimizer, metrics, loss_fn, accumulation_s
         #gt_contacts = torch.rand_like(pd_contacts)
 
         # generate logits & label for L/k top accuracy
+        cf_logits, cf_labels = model.contact_to_cf_vectors(pd_contacts, gt_contacts)
         rg_logits, rg_labels = model.contact_to_rg_vectors(pd_contacts, gt_contacts)
 
         # compute losses (dict)
@@ -124,7 +125,7 @@ def create_supervised_trainer(model, optimizer, metrics, loss_fn, accumulation_s
             optimizer.step()
             optimizer.zero_grad()
 
-        return {"rg_logits": rg_logits, "rg_labels": rg_labels, "losses":losses, "total_loss": loss.item()}
+        return {"cf_logits": cf_logits, "cf_labels": cf_labels, "rg_logits": rg_logits, "rg_labels": rg_labels, "losses":losses, "total_loss": loss.item()}
 
     engine = Engine(_update)
     engine.state.accumulation_steps = accumulation_steps
@@ -185,6 +186,7 @@ def do_train(
     # metrics relevant to training
     metrics_train = {
         "avg_total_loss": RunningAverage(output_transform=lambda x: x["total_loss"]),
+        "accuracy": RunningAverage(MeanSquaredError(output_transform=lambda x: (x["cf_logits"], x["cf_labels"]))),
         "mse": RunningAverage(MeanSquaredError(output_transform=lambda x: (x["rg_logits"], x["rg_labels"]))),
     }
 
@@ -262,10 +264,11 @@ def do_train(
             writer_train.flush()
 
             # 2.logger
-            logger.info("Epoch[{}] Iteration[{}/{}] ATLoss: {:.3f}, Avg_Loss: {}, MSE: {:.3f}, Base Lr: {:.2e}, step: {}"
+            logger.info("Epoch[{}] Iteration[{}/{}] ATLoss: {:.3f}, Avg_Loss: {}, Accuracy: {:.3f}, Base Lr: {:.2e}, step: {}"
                         .format(engine.state.epoch, ITER, len(train_loader),
                                 engine.state.metrics['avg_total_loss'], avg_losses,
-                                engine.state.metrics['mse'],
+                                engine.state.metrics['accuracy'],
+                                #engine.state.metrics['mse'],
                                 scheduler.get_lr()[0], step))
 
         if len(train_loader) == ITER:

@@ -72,6 +72,18 @@ class Baseline(nn.Module):
 
         return rg_logits, rg_labels
 
+    def contact_to_cf_vectors(self, pd_contacts, gt_contacts):
+        rg_logits = []
+        rg_labels = []
+        for index, gt_contact in enumerate(gt_contacts):
+            pd_contact = pd_contacts[index][0:gt_contact.shape[0], 0:gt_contact.shape[1]]
+            rg_logits.append(pd_contact.flatten())
+            rg_labels.append(gt_contact.gt(0.07).float().flatten())
+        rg_logits = torch.cat(rg_logits, dim=0)
+        rg_labels = torch.cat(rg_labels, dim=0)
+
+        return rg_logits, rg_labels
+
     # load parameter
     def load_param(self, load_choice, model_path):
         param_dict = torch.load(model_path)["model"]
